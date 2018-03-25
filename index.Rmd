@@ -1,0 +1,95 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Amanda Adler"
+date: "March 25, 2018"
+output: html_document
+---
+Background:
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively. Individuals use these devices to quantify their activity level but rarely are the able to qunaity how well they perform the activities.  The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and create a model to predict whether participants perform barbell lifts correctly.  They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+libraries
+```{r, echo=FALSE}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rattle)
+```
+
+####Load in the training dataset
+```{r, echo=TRUE}
+train <- read.csv("pml-training.csv",header=TRUE)
+dim(train)
+```
+####Load in the testing dataset
+```{r, echo=TRUE}
+test <- read.csv("pml-testing.csv", header=TRUE)
+dim(test)
+```
+
+```{r, echo=TRUE}
+str(train)
+str(test)
+```
+
+Many of the variables in the training dataset have missing values for nearly if not all of the observations.  After doing further research on this topic, it seemed best to remove any predicitor with NA values. Also removed the first 7 colums as they are not appropriate to use as predictors. 
+
+```{r, echo=TRUE}
+remove <- which(colSums(is.na(train)|train=="")>0*dim(train)[1]) 
+train_new <- train[,-remove]
+train_new <- train_new[,-c(1:7)]
+dim(train_new)
+```
+
+####Make same changes to testing dataset
+```{r, echo=TRUE}
+remove2 <- which(colSums(is.na(test)|test=="")>0*dim(test)[1])
+test_new <- test[,-remove2]
+test_new <- test_new[,-c(1:7)]
+dim(test_new)
+```
+
+####Split training dataset into training and test datasets for model buidling purposes
+```{r, echo=TRUE}
+set.seed(2253)
+part <- createDataPartition(train_new$classe, p=.75, list=FALSE)
+train_final <- train_new[part,]
+train_test <- train_new[-part,]
+```
+##Prediction Algorithms
+We will use a classification tree model and random forest model 
+
+###Classification tree
+For cross-validation, we used a 5-fold cross validation. 
+```{r, echo=TRUE}
+cv <- trainControl(method = "cv", number = 5)
+rpart <- train(classe ~ ., data =train_final, method = "rpart", trControl = cv)
+```
+```{r, echo=TRUE}
+fancyRpartPlot(rpart$finalModel)
+```
+
+Show model predictions using the validation data (testing partition of the training dataset)
+```{r, echo=TRUE}
+predict_rpart <- predict(rpart, train_test)
+result_rpart <- confusionMatrix(train_test$classe, predict_rpart)
+result_rpart
+```
+This model had an overall accuracy of .5, which means the out of sample error rate is also 0.5. Therefore this model is no more accurate than flipping a coin. 
+
+###Random Forests
+```{r, echo=TRUE}
+mod_rf <- train(classe ~ ., data = train_final, method = "rf", trControl=cv)
+```
+Show model predictions using the validation data (testing partition of the training dataset)
+```{r, echo=TRUE}
+predict_rf <- predict(mod_rf, train_test)
+confusionMatrix(predict_rf, train_test$classe)$overall[1]
+```
+
+The accuracy of the random forests model was 99% meaning it was a much better model for prediciting the outcome than the classification tree model. 
+
+### We will now use the random forests model on the actual (cleaned) test data
+```{r, echo=TRUE}
+final_model <- predict(mod_rf, test_new)
+```
+
